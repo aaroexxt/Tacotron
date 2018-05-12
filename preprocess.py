@@ -2,7 +2,7 @@ import argparse
 import os
 from multiprocessing import cpu_count
 from tqdm import tqdm
-from datasets import blizzard, ljspeech
+from datasets import blizzard, ljspeech, aaset
 from hparams import hparams
 
 
@@ -19,6 +19,13 @@ def preprocess_ljspeech(args):
   out_dir = os.path.join(args.base_dir, args.output)
   os.makedirs(out_dir, exist_ok=True)
   metadata = ljspeech.build_from_path(in_dir, out_dir, args.num_workers, tqdm=tqdm)
+  write_metadata(metadata, out_dir)
+
+def preprocess_aaset(args):
+  in_dir = os.path.join(args.base_dir, 'AASet-1.0')
+  out_dir = os.path.join(args.base_dir, args.output)
+  os.makedirs(out_dir, exist_ok=True)
+  metadata = aaset.build_from_path(in_dir, out_dir, args.num_workers, tqdm=tqdm)
   write_metadata(metadata, out_dir)
 
 
@@ -44,6 +51,10 @@ def main():
     preprocess_blizzard(args)
   elif args.dataset == 'ljspeech':
     preprocess_ljspeech(args)
+  elif args.dataset == 'aaset':
+    preprocess_aaset(args)
+  else:
+    print('Dataset '+args.dataset+' has no preprocessor; cannot preprocess')
 
 
 if __name__ == "__main__":

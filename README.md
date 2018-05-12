@@ -1,6 +1,8 @@
 # Tacotron
 
 An implementation of Tacotron speech synthesis in TensorFlow.
+Original Author: Keith Ito, modified by Aaron Becker
+###### Support for AASet-1.0
 
 
 ### Audio Samples
@@ -22,8 +24,6 @@ independent attempt to provide an open-source implementation of the model descri
 
 The quality isn't as good as Google's demo yet, but hopefully it will get there someday :-).
 Pull requests are welcome!
-
-
 
 ## Quick Start
 
