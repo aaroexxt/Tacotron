@@ -5,14 +5,15 @@ echo "Wav-Converter: 44100 to 22050 khz";
 echo "You need ffmpeg installed."
 echo "~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-";
 cwd=$(pwd);
-in_dir="wavs/";
-out_dir="22050wavs";
+in_dir="44100wavs/";
+out_dir="wavs/";
 
 echo "CWD: $cwd";
 out_dir=${out_dir%/} #remove trailing slashes
 in_dir=${in_dir%/}
+cwd=${cwd%/}
 
-array=(`ls wavs/`) # find array of wav files
+array=(`ls $cwd/$in_dir/`) # find array of wav files
 len=${#array[*]}
 
 if [[ $len > 0 ]]; then
@@ -25,5 +26,5 @@ if [[ $len > 0 ]]; then
     done
     echo "Done converting wav files.";
 else
-    echo "No wav files found in directory :(";
+    echo "No wav files found in directory :(. Is the directory setting correct?";
 fi
