@@ -2,7 +2,7 @@
 The AASpeech Dataset
 
 Version 1.0
-May 15th, 2017
+May 15th, 2018
 https://aaronbecker.tech/projects/aaspeech.html
 -----------------------------------------------------------------------------
 CREDIT
@@ -30,7 +30,7 @@ line, delimited by the pipe character (0x7c). The fields are:
 
   1. ID: this is the name of the corresponding .wav file
   2. Transcription: words spoken by the reader (UTF-8)
-  3. Normalized Transcription: transcription with numbers, ordinals, and
+  3. Normalized Transcription (generated automatically): transcription with numbers, ordinals, and
      monetary units expanded into full words (UTF-8).
 
 Each audio file is a single-channel 16-bit PCM WAV with a sample rate of
