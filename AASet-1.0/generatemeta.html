@@ -1,0 +1,418 @@
+<html>
+    <head>
+        <title>Metadata.csv Helper</title>
+    </head>
+    <body>
+        <h1>Aaron's Metadata Helper Tool</h1>
+        <p>This tool helps with 2 functions: generation of metadata structure and the normalization of non-normalized/incomplete metadata. It also fixes issues with the data like improper quote marks (slanted quote marks).</p>
+        <h3>Example of Non-Normalized Data:</h3>
+        <p>AS001-0001|hello. (Chapter 123) ’St. John helped me‘ “Mrs Prim wanted help“ … "St John Mrs. Prim" Charlotte Brontë <br>
+AS001-0002|testing testing 123 ’‘““ 1st 2nd 3rd $11.50 <br>
+        AS001-0003|Mr. Thackeray, Mr Rochester, Mrs. Helen, Mrs Ana and St. John, as well as St Greg worked on the project.</p>
+        <p>This script will complete the above data, turning it into:</p>
+        <p>
+            AS001-0001|hello. (Chapter 123) "St. John helped me" "Mrs Prim wanted help" ... "St John Mrs. Prim" Charlotte Bronte|hello. (Chapter one hundred twenty-three) "Saint John helped me" "Misess Prim wanted help" ... "Saint John Misess Prim" Charlotte Bronte <br>
+AS001-0002|testing testing 123 """" 1st 2nd 3rd $11.50|testing testing one hundred twenty-three """" first second third eleven dollars and fifty cents <br>
+AS001-0003|Mr. Thackeray, Mr Rochester, Mrs. Helen, Mrs Ana and St. John, as well as St Greg worked on the project.|Mister Thackeray, Mister Rochester, Misess Helen, Misess Ana and Saint John, as well as Saint Greg worked on the project.
+            </p>
+<strong>There is only support for: Mr. Mrs. and St. If you want more name extensions, add it yourself, sorry :)<br>WARNING: This algorithm can't determine time vs numbers. If you put '1847' in your data, it will output 'one thousand forty-seven', which is not 'eighteen forty-seven'. You will have to fix this manually, sorry.</strong>
+
+        <!--Place the metadata here and click 'Generate Normalized' to generate the normalized metadata, click 'Generate Structure' to generate the basic metadata structure.-->
+        <textarea rows="30" cols="100" id="meta">
+Place the metadata here and click 'Generate Normalized' to generate the normalized metadata, click 'Generate Structure' to generate the basic metadata structure.
+
+Example testing metadata:
+
+AS001-0001|hello. (Chapter 123) ’St. John helped me‘ “Mrs Prim wanted help“ … "St John Mrs. Prim" Charlotte Brontë
+AS001-0002|testing testing 123 ’‘““ 1st 2nd 3rd $11.50
+AS001-0003|Mr. Thackeray, Mr Rochester, Mrs. Helen, Mrs Ana and St. John, as well as St Greg worked on the project.
+        </textarea>
+        <br>
+        <button onclick="generateMetadata();">Generate Structure</button>
+        <button onclick="normalizeMetadata()">Generate Normalized</button>
+        <br>
+        <p>Warnings will appear here:</p>
+        <p id="warnings"></p>
+        <script>
+            var htmlmeta = document.getElementById("meta");
+            //code to generate pipe chars and metadata structure
+            function generateMetadata() {
+                var amnt = prompt("Amount of total audio files?");
+                amnt = Number(amnt);
+                if (amnt > 0) {
+                    htmlmeta.innerHTML = "";
+                    var threeH = 0;
+                    var threeC = 1;
+                    for (var i=1; i<9; i++) { //find amount of threehundreds that fit into num (max is 9*300 audio files (add support for the as00 file names if you want more))
+                        if (amnt-(i*300) > 0) {
+                            threeH++;
+                        }
+                    }
+                    console.log("threeh "+threeH);
+                    if (threeH > 0) {
+                        for (var i=0; i<threeH; i++) { //add the threehundreds
+                            for (var j=1; j<=300; j++) {
+                                if (j < 10) {
+                                    htmlmeta.innerHTML+="AS00"+threeC+"-000"+j+"|\n";
+                                } else if (j < 100) {
+                                    htmlmeta.innerHTML+="AS00"+threeC+"-00"+j+"|\n";
+                                } else {
+                                    htmlmeta.innerHTML+="AS00"+threeC+"-0"+j+"|\n";
+                                }
+                            }
+                            amnt-=300; //subtract 300 from amount
+                            threeC++;
+                        }
+                    }
+                    for (var i=1; i<=amnt; i++) { //last few
+                        if (i < 10) {
+                            htmlmeta.innerHTML+="AS00"+threeC+"-000"+i+"|\n";
+                        } else if (i < 100) {
+                            htmlmeta.innerHTML+="AS00"+threeC+"-00"+i+"|\n";
+                        } else {
+                            htmlmeta.innerHTML+="AS00"+threeC+"-0"+i+"|\n";
+                        }
+                    }
+                } else {
+                    alert("Amount of audio files is invalid or is 0.");
+                }
+            }
+            /*
+            AS001-0001|hello. (Chapter 123) ’St. John helped me‘ “Mrs Prim wanted help“ … "St John Mrs. Prim" Charlotte Brontë
+            AS001-0002|testing testing 123
+            */
+            var badlist = [
+                ["‘","\""],
+                ["’","\""],
+                ["…","..."],
+                ["ë","e"],
+                ["“","\""],
+                ["”","\""]
+            ];
+            var apostraphe1 = "‘";
+            var apostraphe2 = "’";
+            var replaceApostrapheChar = "'";
+
+            var mrsexpansion = "Misess";
+            var mrexpansion = "Mister";
+            var stexpansion = "Saint";
+
+            var moneySymbol = "$";
+
+            function normalizeMetadata() {
+                document.getElementById("warnings").innerHTML = "";
+                var metadata = htmlmeta.value;
+                var lines = metadata.split("\n");
+                var flines = [];
+                for (var i=0; i<lines.length; i++) {
+                    var pipesplit = lines[i].split("|");
+                    var cleanedsplit = "";
+                    var numbersplit = "";
+                    if (pipesplit.length < 2) {
+                        console.warn("Missing or irregularly formatted line on line "+i);
+                        document.getElementById("warnings").innerHTML+="Missing or irregularly formatted line on line "+i+"<br>";
+                    } else {
+                        flines.push(pipesplit[0]+"|");
+                        for (var j=0; j<pipesplit[1].length; j++) {
+                            var lchar = pipesplit[1][j]; //ignore the first part
+
+                            var matched = false;
+                            for (var b=0; b<badlist.length; b++) {
+                                //console.log("lchar = "+lchar+", badlist= "+badlist[b])
+                                if (lchar == badlist[b][0]) {
+                                    if ((lchar == apostraphe1 || lchar == apostraphe2) && pipesplit[1][j+1] == "s") { //could it be an apostraphe? and if so is there an s after
+                                        cleanedsplit+=replaceApostrapheChar;
+                                        matched = true;
+                                    } else {
+                                        cleanedsplit+=badlist[b][1];
+                                        matched = true;
+                                    }
+                                }
+                            }
+                            if (!matched) { //not matched in badlist
+                                cleanedsplit+=lchar;
+                            }
+                        }
+                        flines[i]+=cleanedsplit+"|";
+                        for (var j=0; j<cleanedsplit.length; j++) {
+                            var lchar = cleanedsplit[j];
+
+                            try {
+                                if ((j+2) < cleanedsplit.length) {
+                                    if (lchar.toLowerCase() == "m" && cleanedsplit[j+1].toLowerCase() == "r" && (cleanedsplit[j+3].toLowerCase() == " " || cleanedsplit[j+3].toLowerCase() == "." || cleanedsplit[j+2].toLowerCase() == " " || cleanedsplit[j+2].toLowerCase() == ".") && (cleanedsplit[j-1] == " " || typeof cleanedsplit[j-1] == "undefined" || cleanedsplit[j-1] == "\"")) { //name/title mr and mrs
+                                        console.log("Name/title MR/MRS detected");
+                                        try {
+                                            if (cleanedsplit[j+2].toLowerCase() == "s") { //mrs
+                                                numbersplit+=mrsexpansion;
+                                                if (cleanedsplit[j+3] == ".") {
+                                                    j+=3;
+                                                } else {
+                                                    j+=2; //no dot
+                                                }
+                                            } else {
+                                                numbersplit+=mrexpansion;
+                                                if (cleanedsplit[j+2] == ".") {
+                                                    j+=2;
+                                                } else {
+                                                    j+=1; //no dot
+                                                }
+                                            }
+                                        } catch(e) {
+                                            console.error("Did you end with a 'mr' in a quote? It is causing an error, luckily I thought about this and implemented a fix.");
+                                            numbersplit+=mrexpansion;
+
+                                        }
+                                    } else if (lchar.toLowerCase() == "s" && cleanedsplit[j+1].toLowerCase() == "t" && (cleanedsplit[j+2].toLowerCase() == " " || cleanedsplit[j+2].toLowerCase() == ".") && (cleanedsplit[j-1] == " " || typeof cleanedsplit[j-1] == "undefined" || cleanedsplit[j-1] == "\"")) { //name/title st
+                                        console.log("Name/title St detected")
+                                        numbersplit+=stexpansion;
+                                        if (cleanedsplit[j+2] == ".") {
+                                            j+=2;
+                                        } else {
+                                            j+=1; //no dot
+                                        }
+                                    } else {
+                                        notTitle();
+                                    }
+                                } else {
+                                    notTitle();
+                                }
+                            } catch(e) {
+                                console.error("Error running tests for title. Running through normal processor.");
+                                notTitle();
+                            }
+
+                            function notTitle(){
+                                if ((isNaN(lchar) || lchar == " ") && lchar != "$") { //random character
+                                    numbersplit+=lchar; //just add
+                                } else if (!isNaN(lchar) || lchar == "$") { //number, ordinal or money
+                                    if (lchar == moneySymbol) {
+                                        var ignoreperiod = true;
+                                    } else {
+                                        var ignoreperiod = false;
+                                    }
+                                    var num = lchar;
+                                    var untilend = false;
+                                    var numj = j+1;
+                                    while (untilend == false) { //go until number ends
+                                        var lcharnew = pipesplit[1][numj];
+                                        if ((!isNaN(lcharnew) || lcharnew == "t" || lcharnew == "s" || lcharnew == "n" || lcharnew == "r" || lcharnew == "h" || lcharnew == "d" || (lcharnew == "." && ignoreperiod)) && lcharnew != " ") {
+                                            num+=lcharnew; //add to number because it didn't end (the tnsr are for ordinals)
+                                            numj++;
+                                        } else {
+                                            untilend = true;
+                                            j = numj-1; //don't need because the number is done
+                                        }
+                                    }
+                                    //now we have num, the value of this number. Is it an ordinal number or just a number?
+                                    var numword = "";
+                                    if (num.indexOf("st") > -1 || num.indexOf("nd") > -1 || num.indexOf("rd") > -1 || num.indexOf("th") > -1) { //probably a ordinal (1st, 2nd, etc)
+                                        console.log("ORDINAL: "+num);
+                                        if (num.indexOf("st") > -1) {
+                                            num = num.substring(0,num.indexOf("st"));
+                                        } else if (num.indexOf("nd") > -1) {
+                                            num = num.substring(0,num.indexOf("nd"));
+                                        } else if (num.indexOf("rd") > -1) {
+                                            num = num.substring(0,num.indexOf("rd"));
+                                        } else if (num.indexOf("th") > -1) {
+                                            num = num.substring(0,num.indexOf("th"));
+                                        } else {
+                                            console.error("Somehow there is a ordinal no match when it was matched in the if? I'm confusing myself. (Should not happen, haha)");
+                                        }
+                                        numword = nth(num);
+                                    } else if (num.indexOf("$") > -1) { //it's money probably
+                                        console.log("MONEY: "+num);
+                                        num = num.substring(num.indexOf("$")+1,num.length)
+                                        numword = spellOutMoney(num);
+                                    } else { //regular number
+                                        console.log("NUMBER: "+num);
+                                        numword = numToWords(num);
+                                    }
+                                    if (numword.substring(numword.length-1, numword.length) == " ") {
+                                        numword = numword.substring(0,numword.length-1);
+                                    }
+                                    console.log("numword: "+numword)
+                                    numbersplit+=numword; //add full number w/o space at the end
+                                }
+                            }
+                        }
+                        flines[i]+=numbersplit+" ";
+                    }
+                }
+                htmlmeta.value = "";
+                for (var i=0; i<flines.length; i++){
+                    var line = flines[i];
+                    if (line.substring(line.length-1, line.length) == " ") {
+                        line = line.substring(0, line.length-1);
+                    }
+                    htmlmeta.value+=line+"\n";
+                }
+            }
+            // numToWords :: (Number a, String a) => a -> String
+            let numToWords = n => {
+              let a = [
+                '', 'one', 'two', 'three', 'four',
+                'five', 'six', 'seven', 'eight', 'nine',
+                'ten', 'eleven', 'twelve', 'thirteen', 'fourteen',
+                'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'
+              ];
+              let b = [
+                '', '', 'twenty', 'thirty', 'forty',
+                'fifty', 'sixty', 'seventy', 'eighty', 'ninety'
+              ];
+              let g = [
+                '', 'thousand', 'million', 'billion', 'trillion', 'quadrillion',
+                'quintillion', 'sextillion', 'septillion', 'octillion', 'nonillion'
+              ];
+              // this part is really nasty still
+              // it might edit this again later to show how Monoids could fix this up
+              let makeGroup = ([ones,tens,huns]) => {
+                return [
+                  num(huns) === 0 ? '' : a[huns] + ' hundred ',
+                  num(ones) === 0 ? b[tens] : b[tens] && b[tens] + '-' || '',
+                  a[tens+ones] || a[ones]
+                ].join('');
+              };
+              // "thousands" constructor; no real good names for this, i guess
+              let thousand = (group,i) => group === '' ? group : `${group} ${g[i]}`;
+              // execute !
+              if (typeof n === 'number') return numToWords(String(n));
+              if (n === '0')             return 'zero';
+              return comp (chunk(3)) (reverse) (arr(n))
+                .map(makeGroup)
+                .map(thousand)
+                .filter(comp(not)(isEmpty))
+                .reverse()
+                .join(' ');
+            };
+
+            const arr = x => Array.from(x);
+            const num = x => Number(x) || 0;
+            const str = x => String(x);
+            const isEmpty = xs => xs.length === 0;
+            const take = n => xs => xs.slice(0,n);
+            const drop = n => xs => xs.slice(n);
+            const reverse = xs => xs.slice(0).reverse();
+            const comp = f => g => x => f (g (x));
+            const not = x => !x;
+            const chunk = n => xs =>
+              isEmpty(xs) ? [] : [take(n)(xs), ...chunk (n) (drop (n) (xs))];
+
+            var nth = function(i){
+              var n = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
+              var s = ["zeroth", "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth",
+                   "eleventh", "twelfth", "thirteenth", "fourteenth", "fifteenth", "sixteenth", "seventeenth", "eighteenth", "nineteenth"];
+              var p = ["twent", "thirt", "fourt", "fift", "sixt", "sevent", "eight", "ninet"];
+              var c = ["hundred", "thousand", "million", "billion", "trillion", "quadrillion", "quintillion"];
+              var b = Math.floor(Math.log10(i));
+              if(i<20) return s[i]; // Special case for sub-20
+              if(b==1){ // Between 21 and 99
+                if(i%10 === 0) return p[Math.floor(i/10)-2]+"ieth"; // On the tens, return p+"ieth"
+                return p[Math.floor(i/10)-2] + "y-" + s[i%10]; // Otherwise, return hyphenated
+              }
+              if(b==2){ // Between 100 and 999
+                  var e = Math.floor(i/Math.pow(10,b)); // The first number
+                  return n[e-1]+"-"+c[0]+" "+nth(i-(e*Math.pow(10,b)));
+              }
+              // Greater than 1000 we break into groups of 10^3 followed by a multiplier
+              var m = b%3 + 1; // Take the first m digits off
+              var cm = Math.floor(b/3);
+              var x = Math.floor(i/Math.pow(10,b-m+1));
+              var numberToString = function(y){ // Converts a number less than 1000 to its string representation as a multiplier
+                if(y<20) return n[y-1];
+                if(y<100) return p[Math.floor(y/10)-2] + "y-" + n[y%10-1];
+                return n[Math.floor(y/100)-1] + " " + c[0] + " " + numberToString(y-(Math.floor(y/100)*100));
+              }
+              return numberToString(x) + " " + c[cm] + " " + nth(i-(x*Math.pow(10, b-m+1)));
+            }
+
+            function spellOutMoney(amount) {
+                var exp = ["", "thousand", "million", "billion", "trillion"];
+                var dec = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+                var sing = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+                            "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
+             
+                // Round to two decimal points and format as a string
+                var str = parseFloat(amount).toFixed(2);
+             
+                // Extract the integer part and the fraction part
+                var intStr = str.substring(0, str.length - 3);
+                var frac = str.substring(str.length - 2);
+             
+                // Compute the number of three-digit groups
+                var tot = "";
+                var len = intStr.length;
+                var grp = Math.floor(len / 3) + (len % 3 == 0 ? 0 : 1);
+             
+                // For each group ...
+                for (var g = grp; g > 0; --g) {
+                    var p = len - 3 * g;
+                    var s = "";
+             
+                    // Format the hundreds
+                    if (p >= 0 && intStr[p] != '0') {
+                        s += sing[parseInt(intStr[p])] + " hundred";
+                    }
+             
+                    // Format values between 1 and 99
+                    if (p >= -1) {
+                        if (intStr[p + 1] < '2') {
+                            if (s != "") s += " ";
+                            s += sing[10 * parseInt(intStr[p + 1]) + parseInt(intStr[p + 2])];
+                        } else {
+                            if (s != "") s += " ";
+                            s += dec[parseInt(intStr[p + 1])];
+                            if (intStr[p + 2] > '0') {
+                                s += '-' + sing[parseInt(intStr[p + 2])];
+                            }
+                        }
+             
+                    // Special case if amount < 10
+                    } else if (intStr[p + 2] > '0') {
+                        if (s != "") s += " ";
+                        s += sing[parseInt(intStr[p + 2])];
+                    }
+             
+                    // Add exponent descriptor
+                    if (s != "") {
+                        var e = exp[g - 1];
+                        if (e != "") {
+                            s += " " + e;
+                        }
+                    }
+             
+                    // Append to total string
+                    if (tot != "") tot += " ";
+                    tot += s;
+                }
+             
+                // Append "dollar(s)"
+                var d = parseInt(intStr);
+                if (d == 1) {
+                    tot += " dollar";
+                } else if (d > 1) {
+                    tot += " dollars";
+                }
+             
+                // Append fractional part, if not zero
+                if (frac != "00") {
+                    if (tot != "") tot += " and ";
+                    var c = "";
+                    if (frac[0] < '2') {
+                        c = sing[10 * parseInt(frac[0]) + parseInt(frac[1])];
+                    } else {
+                        c = dec[parseInt(frac[0])];
+                        if (frac[1] > '0') {
+                            c += '-' + sing[parseInt(frac[1])];
+                        }
+                    }
+                    tot += c + (frac == "01" ? " cent" : " cents");
+                }
+             
+                // Special case if amount == 0
+                if (tot == "") tot = "zero";
+             
+                return tot;
+            }
+        </script>
+    </body>
+</html>
