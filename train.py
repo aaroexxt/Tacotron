@@ -5,7 +5,9 @@ import numpy as np
 import os
 import subprocess
 import time
+import sys
 import tensorflow as tf
+from tensorflow.python.client import device_lib
 import traceback
 
 from datasets.datafeeder import DataFeeder
@@ -47,6 +49,7 @@ def train(log_dir, args):
   commit = get_git_commit() if args.git else 'None'
   checkpoint_path = os.path.join(log_dir, 'model.ckpt')
   input_path = os.path.join(args.base_dir, args.input)
+  log('Devices available to tensorflow: '+device_lib.list_local_devices())
   log('Checkpoint path: %s' % checkpoint_path)
   log('Loading training data from: %s' % input_path)
   log('Using model: %s' % args.model)
@@ -73,7 +76,7 @@ def train(log_dir, args):
   saver = tf.train.Saver(max_to_keep=5, keep_checkpoint_every_n_hours=2)
 
   # Train!
-  with tf.Session() as sess:
+  with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
     try:
       summary_writer = tf.summary.FileWriter(log_dir, sess.graph)
       sess.run(tf.global_variables_initializer())
@@ -97,6 +100,49 @@ def train(log_dir, args):
           step, time_window.average, loss, loss_window.average)
         log(message, slack=(step % args.checkpoint_interval == 0))
 
+        commandHelp = False #so commands can't be called twice
+        commandExit = False
+        commandExitCkpt = False
+        commandSummary = False
+        commandCkpt = False
+        commandAudio = False
+        for line in sys.stdin: #user can feed in stdin to respond to training ;)
+          line = line.strip('\n').casefold();
+          if (line == "help" and commandHelp == False):
+            commandHelp = True
+          elif (line == "savecheckpoint" and commandCkpt == False):
+            commandCkpt = True
+            log('Saving checkpoint to: %s-%d (requested by user)' % (checkpoint_path, step))
+            saver.save(sess, checkpoint_path, global_step=step)
+          elif (line == "saveaudio" and commandAudio == False):
+            commandAudio = True
+            log('Saving audio and alignment (requested by user)...')
+            input_seq, spectrogram, alignment = sess.run([
+              model.inputs[0], model.linear_outputs[0], model.alignments[0]])
+            waveform = audio.inv_spectrogram(spectrogram.T)
+            audio.save_wav(waveform, os.path.join(log_dir, 'step-%d-audio.wav' % step))
+            plot.plot_alignment(alignment, os.path.join(log_dir, 'step-%d-align.png' % step),
+              info='%s, %s, %s, step=%d, loss=%.5f' % (args.model, commit, time_string(), step, loss))
+            log('Input: %s' % sequence_to_text(input_seq))
+          elif (line == "savesummary" and commandSummary == False):
+            commandSummary = True
+            log('Writing summary at step: %d (requested by user)' % step)
+            summary_writer.add_summary(sess.run(stats), step)
+          elif (line == "exit" and commandExitCkpt == False):
+            commandExitCkpt = True
+            log('Saving checkpoint to: %s-%d (requested by user) and exiting' % (checkpoint_path, step))
+            saver.save(sess, checkpoint_path, global_step=step)
+            coord.request_stop()
+          elif (line == "exitnockpt" and commandExit == False):
+            commandExit = True
+            log('Exiting training session (requested by user)')
+            coord.request_stop()
+          else:
+            commandHelp = True
+
+        if (commandHelp):
+          print("Help for stdin while training:\nInput: 'help', Output: Help string\nInput: 'savecheckpoint', Output: Saves checkpoint of model at its current training step\nInput: 'saveaudio', Output: Saves audio of current data run through model\nInput: 'exit', Output: Requests a clean exit of the training and saves a checkpoint of the current training step\nInput: 'exitnockpt', Output: Requests a clean exit of the training without saving a checkpoint")
+
         if loss > 100 or math.isnan(loss):
           log('Loss exploded to %.05f at step %d!' % (loss, step), slack=True)
           raise Exception('Loss Exploded')
@@ -117,6 +163,8 @@ def train(log_dir, args):
             info='%s, %s, %s, step=%d, loss=%.5f' % (args.model, commit, time_string(), step, loss))
           log('Input: %s' % sequence_to_text(input_seq))
 
+    except RuntimeError:
+      log('One thread took more than coordinator grace period to stop, it is being killed')
     except Exception as e:
       log('Exiting due to exception: %s' % e, slack=True)
       traceback.print_exc()

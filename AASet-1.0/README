@@ -9,6 +9,7 @@ CREDIT
 The structure of this dataset, (and most of the README text), I credit to
 Keith Ito, who has done amazing work on an implementation of Tacotron (TTS).
 This dataset was designed for that repository, but can be used in other applications as well.
+Keith's Repository: https://github.com/keithito/tacotron
 
 Book:
 Jane Eyre by Charlotte Brontë. I did not write any of the text that I spoke.
