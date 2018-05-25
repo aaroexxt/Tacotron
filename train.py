@@ -131,11 +131,15 @@ def train(log_dir, args):
             plot.plot_alignment(alignment, plot_path,
              info='%s, %s, %s, step=%d, loss=%.5f' % (args.model, commit, time_string(), step, loss))
             log('Input: %s' % sequence_to_text(input_seq))
-            if (args.upload_gdrive !== ""):
+            if (args.upload_gdrive != ""):
               log("Uploading to audio, alignment, and log to google drive at "+audio_path+", "+plot_path)
-              subprocess.call(["skicka","upload",audio_path,("/"+args.upload_gdrive)])
-              subprocess.call(["skicka","upload",plot_path,("/"+args.upload_gdrive)])
-              subprocess.call(["skicka","upload",os.path.join(log_dir, 'train.log'),("/"+args.upload_gdrive)])
+              try:
+                subprocess.call(["skicka","upload",audio_path,("/"+args.upload_gdrive)])
+                subprocess.call(["skicka","upload",plot_path,("/"+args.upload_gdrive)])
+                subprocess.call(["skicka","upload",os.path.join(log_dir, 'train.log'),("/"+args.upload_gdrive)])
+              except Exception as e:
+                log('Error uploading to google drive due to exception: %s' % e, slack=True)
+                traceback.print_exc()
           elif (line == "savesummary" and commandSummary == False):
             commandSummary = True
             log('Writing summary at step: %d (requested by user)' % step)
@@ -176,11 +180,15 @@ def train(log_dir, args):
           plot.plot_alignment(alignment, plot_path,
            info='%s, %s, %s, step=%d, loss=%.5f' % (args.model, commit, time_string(), step, loss))
           log('Input: %s' % sequence_to_text(input_seq))
-          if (args.upload_gdrive !== ""):
+          if (args.upload_gdrive != ""):
             log("Uploading to audio, alignment, and log to google drive at "+audio_path+", "+plot_path)
-            subprocess.call(["skicka","upload",audio_path,("/"+args.upload_gdrive)])
-            subprocess.call(["skicka","upload",plot_path,("/"+args.upload_gdrive)])
-            subprocess.call(["skicka","upload",os.path.join(log_dir, 'train.log'),("/"+args.upload_gdrive)])
+            try:
+              subprocess.call(["skicka","upload",audio_path,("/"+args.upload_gdrive)])
+              subprocess.call(["skicka","upload",plot_path,("/"+args.upload_gdrive)])
+              subprocess.call(["skicka","upload",os.path.join(log_dir, 'train.log'),("/"+args.upload_gdrive)])
+            except Exception as e:
+              log('Error uploading to google drive due to exception: %s' % e, slack=True)
+              traceback.print_exc()
 
 
     except RuntimeError:
@@ -215,7 +223,7 @@ def main():
   os.makedirs(log_dir, exist_ok=True)
   infolog.init(os.path.join(log_dir, 'train.log'), run_name, args.slack_url)
   hparams.parse(args.hparams)
-  if (args.upload_gdrive !== ""):
+  if (args.upload_gdrive != ""):
     if (subprocess.getstatusoutput("skicka") == 0):
       log('Using google drive upload in run')
       print("Initializing skicka...")
