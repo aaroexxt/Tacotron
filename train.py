@@ -49,7 +49,7 @@ def train(log_dir, args):
   commit = get_git_commit() if args.git else 'None'
   checkpoint_path = os.path.join(log_dir, 'model.ckpt')
   input_path = os.path.join(args.base_dir, args.input)
-  log('Devices available to tensorflow: '+device_lib.list_local_devices())
+  log('Devices available to tensorflow: '+str(device_lib.list_local_devices()))
   log('Checkpoint path: %s' % checkpoint_path)
   log('Loading training data from: %s' % input_path)
   log('Using model: %s' % args.model)
@@ -134,9 +134,9 @@ def train(log_dir, args):
             if (args.upload_gdrive != ""):
               log("Uploading to audio, alignment, and log to google drive at "+audio_path+", "+plot_path)
               try:
-                subprocess.call(["skicka","upload",audio_path,("/"+args.upload_gdrive)])
-                subprocess.call(["skicka","upload",plot_path,("/"+args.upload_gdrive)])
-                subprocess.call(["skicka","upload",os.path.join(log_dir, 'train.log'),("/"+args.upload_gdrive)])
+                subprocess.call([args.skicka_path,"upload",audio_path,("/"+args.upload_gdrive)], executable="/bin/bash")
+                subprocess.call([args.skicka_path,"upload",plot_path,("/"+args.upload_gdrive)], executable="/bin/bash")
+                subprocess.call([args.skicka_path,"upload",os.path.join(log_dir, 'train.log'),("/"+args.upload_gdrive)], executable="/bin/bash")
               except Exception as e:
                 log('Error uploading to google drive due to exception: %s' % e, slack=True)
                 traceback.print_exc()
@@ -183,9 +183,9 @@ def train(log_dir, args):
           if (args.upload_gdrive != ""):
             log("Uploading to audio, alignment, and log to google drive at "+audio_path+", "+plot_path)
             try:
-              subprocess.call(["skicka","upload",audio_path,("/"+args.upload_gdrive)])
-              subprocess.call(["skicka","upload",plot_path,("/"+args.upload_gdrive)])
-              subprocess.call(["skicka","upload",os.path.join(log_dir, 'train.log'),("/"+args.upload_gdrive)])
+              subprocess.call([args.skicka_path,"upload",audio_path,("/"+args.upload_gdrive)], executable="/bin/bash")
+              subprocess.call([args.skicka_path,"upload",plot_path,("/"+args.upload_gdrive)], executable="/bin/bash")
+              subprocess.call([args.skicka_path,"upload",os.path.join(log_dir, 'train.log'),("/"+args.upload_gdrive)], executable="/bin/bash")
             except Exception as e:
               log('Error uploading to google drive due to exception: %s' % e, slack=True)
               traceback.print_exc()
@@ -216,6 +216,7 @@ def main():
   parser.add_argument('--tf_log_level', type=int, default=1, help='Tensorflow C++ log level.')
   parser.add_argument('--git', action='store_true', help='If set, verify that the client is clean.')
   parser.add_argument('--upload_gdrive', default='', help='Upload files to google drive. This command sets the default folder name on google drive to upload to.')
+  parser.add_argument('--skicka_path', default='', help='Path to skicka command from command line. Will find automatically if set to none.')
   args = parser.parse_args()
   os.environ['TF_CPP_MIN_LOG_LEVEL'] = str(args.tf_log_level)
   run_name = args.name or args.model
@@ -224,14 +225,20 @@ def main():
   infolog.init(os.path.join(log_dir, 'train.log'), run_name, args.slack_url)
   hparams.parse(args.hparams)
   if (args.upload_gdrive != ""):
-    if (subprocess.getstatusoutput("skicka") == 0):
+    if (args.skicka_path == ""):
+      proc = subprocess.Popen(['which', 'skicka'], stdout=subprocess.PIPE)
+      output = proc.stdout.read()
+      sliceend = str(output[0:len(output)-1])
+      args.skicka_path = str(sliceend[2:len(sliceend)-1])
+    print("Skicka path: "+args.skicka_path)
+    if (subprocess.getstatusoutput(args.skicka_path, executable="/bin/bash") == 0):
       log('Using google drive upload in run')
       print("Initializing skicka...")
-      subprocess.call(["skicka","init"])
+      subprocess.call([args.skicka_path,"init"], executable="/bin/bash")
       print("Please enter google username and password")
-      subprocess.call(["skicka","ls"])
+      subprocess.call([args.skicka_path,"ls"], executable="/bin/bash")
       print("Making directories in drive...")
-      subprocess.call(["skicka","mkdir","/"+args.upload_gdrive])
+      subprocess.call([args.skicka_path,"mkdir","/"+args.upload_gdrive], executable="/bin/bash")
     else:
       raise Exception('If --upload_gdrive is set to a value, you must have the tool skicka installed. Run drivesetup.sh to install it.')
 
