@@ -124,10 +124,19 @@ def train(log_dir, args):
             input_seq, spectrogram, alignment = sess.run([
               model.inputs[0], model.linear_outputs[0], model.alignments[0]])
             waveform = audio.inv_spectrogram(spectrogram.T)
-            audio.save_wav(waveform, os.path.join(log_dir, 'step-%d-audio.wav' % step))
-            plot.plot_alignment(alignment, os.path.join(log_dir, 'step-%d-align.png' % step),
-              info='%s, %s, %s, step=%d, loss=%.5f' % (args.model, commit, time_string(), step, loss))
+            
+            audio_path = os.path.join(log_dir, 'step-%d-audio.wav' % step)
+            plot_path = os.path.join(log_dir, 'step-%d-align.png' % step)
+
+            audio.save_wav(waveform, audio_path)
+            plot.plot_alignment(alignment, plot_path,
+             info='%s, %s, %s, step=%d, loss=%.5f' % (args.model, commit, time_string(), step, loss))
             log('Input: %s' % sequence_to_text(input_seq))
+            if (args.upload_gdrive !== ""):
+              log("Uploading to audio, alignment, and log to google drive at "+audio_path+", "+plot_path)
+              subprocess.call(["skicka","upload",audio_path,("/"+args.upload_gdrive)])
+              subprocess.call(["skicka","upload",plot_path,("/"+args.upload_gdrive)])
+              subprocess.call(["skicka","upload",os.path.join(log_dir, 'train.log'),("/"+args.upload_gdrive)])
           elif (line == "savesummary" and commandSummary == False):
             commandSummary = True
             log('Writing summary at step: %d (requested by user)' % step)
