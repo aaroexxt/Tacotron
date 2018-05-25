@@ -14,8 +14,10 @@ from datasets.datafeeder import DataFeeder
 from hparams import hparams, hparams_debug_string
 from models import create_model
 from text import sequence_to_text
-from util import audio, infolog, plot, ValueWindow
+from util import audio, infolog, plot, ValueWindow, input
 log = infolog.log
+kb = input.KBHit() #init keyboard listening
+keycommand=[]
 
 
 def get_git_commit():
@@ -108,9 +110,19 @@ def train(log_dir, args):
         commandSummary = False
         commandCkpt = False
         commandAudio = False
-            
-        for line in sys.stdin: #user can feed in stdin to respond to training ;)
-          line = line.strip('\n').casefold();
+        
+        command = ""
+        global keycommand
+        if kb.kbhit(): #reads key
+          c = kb.getch() #getkey
+          if(ord(c) == 10 or ord(c) == 13):
+              command = ''.join(str(e) for e in keycommand) #join letters
+              print("Command recieved from stdin: "+command)
+              keycommand = []
+          else:
+              keycommand.append(c) #add letter to keycommand
+        if (command != ""): #user can feed in stdin to respond to training ;)
+          line = command.strip('\n').casefold();
           if (line == "help" and commandHelp == False):
             commandHelp = True
             print("Help for stdin while training:\nInput: 'help', Output: Help string\nInput: 'savecheckpoint', Output: Saves checkpoint of model at its current training step\nInput: 'saveaudio', Output: Saves audio of current data run through model\nInput: 'exit', Output: Requests a clean exit of the training and saves a checkpoint of the current training step\nInput: 'exitnockpt', Output: Requests a clean exit of the training without saving a checkpoint")
@@ -190,6 +202,7 @@ def train(log_dir, args):
             except Exception as e:
               log('Error uploading to google drive due to exception: %s' % e, slack=True)
               traceback.print_exc()
+              kb.set_normal_term()
 
 
     except RuntimeError:
@@ -198,6 +211,7 @@ def train(log_dir, args):
       log('Exiting due to exception: %s' % e, slack=True)
       traceback.print_exc()
       coord.request_stop(e)
+      kb.set_normal_term()
 
 
 def main():
@@ -242,120 +256,11 @@ def main():
       subprocess.call([args.skicka_path,"mkdir","/"+args.upload_gdrive], executable="/bin/bash")
     else:
       raise Exception('If --upload_gdrive is set to a value, you must have the tool skicka installed. Run drivesetup.sh to install it.')
+      kb.set_normal_term()
 
   train(log_dir, args)
 
 
 if __name__ == '__main__':
   main()
-  
-c=0
-j=0
-running=True
-while(running):
-  c+=1
-  stdin = sys.stdin.read()
-  if(stdin != ""):
-    print("stdin"+stdin)
-    j-=1
-  if not sys.stdin.isatty():
-    print("notty: "+str(sys.stdin))
-  else:
-    j+=1
-  if(c == 1000):
-    running=False
-    print("done")
-    print("c cycles="+str(c)+", j cycles="+str(j))
-    #print("tty: "+str(sys.stdin))
-    
-    
-#!/usr/bin/python
-# -*- coding: utf-8 -*-
-import os
-# Windows
-if os.name == 'nt':
-    import msvcrt
-else:
-    # Posix (Linux, OS X)
-    import sys
-    import termios
-    import atexit
-    from select import select
-
-class KBHit:
-    def __init__(self):
-        '''Creates a KBHit object that you can call to do various keyboard things.
-        '''
-        if os.name == 'nt':
-            pass
-        else:
-            # Save the terminal settings
-            self.fd = sys.stdin.fileno()
-            self.new_term = termios.tcgetattr(self.fd)
-            self.old_term = termios.tcgetattr(self.fd)
-            # New terminal setting unbuffered
-            self.new_term[3] = self.new_term[3] & ~termios.ICANON \
-                & ~termios.ECHO
-            termios.tcsetattr(self.fd, termios.TCSAFLUSH, self.new_term)
-            # Support normal-terminal reset at exit
-            atexit.register(self.set_normal_term)
-    def set_normal_term(self):
-        ''' Resets to normal terminal.  On Windows this is a no-op.
-        '''
-
-        if os.name == 'nt':
-            pass
-        else:
-            termios.tcsetattr(self.fd, termios.TCSAFLUSH, self.old_term)
-    def getch(self):
-        ''' Returns a keyboard character after kbhit() has been called.
-            Should not be called in the same program as getarrow().
-        '''
-        s = ''
-        if os.name == 'nt':
-            return(msvcrt.getch().decode('utf-8'))
-        else:
-            return(sys.stdin.read(1))
-    def getarrow(self):
-        ''' Returns an arrow-key code after kbhit() has been called. Codes are
-        0 : up
-        1 : right
-        2 : down
-        3 : left
-        Should not be called in the same program as getch().
-        '''
-        if os.name == 'nt':
-            msvcrt.getch()  # skip 0xE0
-            c = msvcrt.getch()
-            vals = [72, 77, 80, 75]
-        else:
-            c = sys.stdin.read(3)[2]
-            vals = [65, 67, 66, 68]
-        return(vals.index(ord(c.decode('utf-8'))))
-    def kbhit(self):
-        ''' Returns True if keyboard character was hit, False otherwise.
-        '''
-        if os.name == 'nt':
-            return msvcrt.kbhit()
-        else:
-            (dr, dw, de) = select([sys.stdin], [], [], 0)
-            return(dr != [])
-
-
-# Test
-kb = KBHit()
-command=[]
-print('Hit any key, or ESC to exit')
-d=0
-while True:
-    d+=1
-    if kb.kbhit():
-        c = kb.getch()
-        if ord(c) == 27:  # ESC
-            print("loop ran "+str(d)+" times")
-            break
-        elif(ord(c) == 10 or ord(c) == 13):
-            print(str(command))
-        else:
-            command+=c
-kb.set_normal_term()
+  kb.set_normal_term()
