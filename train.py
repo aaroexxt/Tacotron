@@ -9,6 +9,7 @@ import sys
 import tensorflow as tf
 from tensorflow.python.client import device_lib
 import traceback
+import subprocess
 
 from datasets.datafeeder import DataFeeder
 from hparams import hparams, hparams_debug_string
@@ -76,7 +77,7 @@ def train(log_dir, args):
   saver = tf.train.Saver(max_to_keep=5, keep_checkpoint_every_n_hours=2)
 
   # Train!
-  with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
+  with tf.Session() as sess:#config=tf.ConfigProto(log_device_placement=True)) as sess:
     try:
       summary_writer = tf.summary.FileWriter(log_dir, sess.graph)
       sess.run(tf.global_variables_initializer())
@@ -88,6 +89,8 @@ def train(log_dir, args):
         log('Resuming from checkpoint: %s at commit: %s' % (restore_path, commit), slack=True)
       else:
         log('Starting new training run at commit: %s' % commit, slack=True)
+
+
 
       feeder.start_in_session(sess)
 
@@ -110,6 +113,7 @@ def train(log_dir, args):
           line = line.strip('\n').casefold();
           if (line == "help" and commandHelp == False):
             commandHelp = True
+            print("Help for stdin while training:\nInput: 'help', Output: Help string\nInput: 'savecheckpoint', Output: Saves checkpoint of model at its current training step\nInput: 'saveaudio', Output: Saves audio of current data run through model\nInput: 'exit', Output: Requests a clean exit of the training and saves a checkpoint of the current training step\nInput: 'exitnockpt', Output: Requests a clean exit of the training without saving a checkpoint")
           elif (line == "savecheckpoint" and commandCkpt == False):
             commandCkpt = True
             log('Saving checkpoint to: %s-%d (requested by user)' % (checkpoint_path, step))
@@ -139,9 +143,7 @@ def train(log_dir, args):
             coord.request_stop()
           else:
             commandHelp = True
-
-        if (commandHelp):
-          print("Help for stdin while training:\nInput: 'help', Output: Help string\nInput: 'savecheckpoint', Output: Saves checkpoint of model at its current training step\nInput: 'saveaudio', Output: Saves audio of current data run through model\nInput: 'exit', Output: Requests a clean exit of the training and saves a checkpoint of the current training step\nInput: 'exitnockpt', Output: Requests a clean exit of the training without saving a checkpoint")
+            print("Help for stdin while training:\nInput: 'help', Output: Help string\nInput: 'savecheckpoint', Output: Saves checkpoint of model at its current training step\nInput: 'saveaudio', Output: Saves audio of current data run through model\nInput: 'exit', Output: Requests a clean exit of the training and saves a checkpoint of the current training step\nInput: 'exitnockpt', Output: Requests a clean exit of the training without saving a checkpoint")
 
         if loss > 100 or math.isnan(loss):
           log('Loss exploded to %.05f at step %d!' % (loss, step), slack=True)
@@ -158,10 +160,20 @@ def train(log_dir, args):
           input_seq, spectrogram, alignment = sess.run([
             model.inputs[0], model.linear_outputs[0], model.alignments[0]])
           waveform = audio.inv_spectrogram(spectrogram.T)
-          audio.save_wav(waveform, os.path.join(log_dir, 'step-%d-audio.wav' % step))
-          plot.plot_alignment(alignment, os.path.join(log_dir, 'step-%d-align.png' % step),
-            info='%s, %s, %s, step=%d, loss=%.5f' % (args.model, commit, time_string(), step, loss))
+
+          audio_path = os.path.join(log_dir, 'step-%d-audio.wav' % step)
+          plot_path = os.path.join(log_dir, 'step-%d-align.png' % step)
+
+          audio.save_wav(waveform, audio_path)
+          plot.plot_alignment(alignment, plot_path,
+           info='%s, %s, %s, step=%d, loss=%.5f' % (args.model, commit, time_string(), step, loss))
           log('Input: %s' % sequence_to_text(input_seq))
+          if (args.upload_gdrive !== ""):
+            log("Uploading to audio, alignment, and log to google drive at "+audio_path+", "+plot_path)
+            subprocess.call(["skicka","upload",audio_path,("/"+args.upload_gdrive)])
+            subprocess.call(["skicka","upload",plot_path,("/"+args.upload_gdrive)])
+            subprocess.call(["skicka","upload",os.path.join(log_dir, 'train.log'),("/"+args.upload_gdrive)])
+
 
     except RuntimeError:
       log('One thread took more than coordinator grace period to stop, it is being killed')
@@ -187,6 +199,7 @@ def main():
   parser.add_argument('--slack_url', help='Slack webhook URL to get periodic reports.')
   parser.add_argument('--tf_log_level', type=int, default=1, help='Tensorflow C++ log level.')
   parser.add_argument('--git', action='store_true', help='If set, verify that the client is clean.')
+  parser.add_argument('--upload_gdrive', default='', help='Upload files to google drive. This command sets the default folder name on google drive to upload to.')
   args = parser.parse_args()
   os.environ['TF_CPP_MIN_LOG_LEVEL'] = str(args.tf_log_level)
   run_name = args.name or args.model
@@ -194,6 +207,18 @@ def main():
   os.makedirs(log_dir, exist_ok=True)
   infolog.init(os.path.join(log_dir, 'train.log'), run_name, args.slack_url)
   hparams.parse(args.hparams)
+  if (args.upload_gdrive !== ""):
+    if (subprocess.getstatusoutput("skicka") == 0):
+      log('Using google drive upload in run')
+      print("Initializing skicka...")
+      subprocess.call(["skicka","init"])
+      print("Please enter google username and password")
+      subprocess.call(["skicka","ls"])
+      print("Making directories in drive...")
+      subprocess.call(["skicka","mkdir","/"+args.upload_gdrive])
+    else:
+      raise Exception('If --upload_gdrive is set to a value, you must have the tool skicka installed. Run drivesetup.sh to install it.')
+
   train(log_dir, args)
 
 

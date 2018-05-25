@@ -8,6 +8,8 @@ from synthesizer import Synthesizer
 
 sentences = [
   # From July 8, 2017 New York Times:
+  'Hey. How\'s your day going?',
+  'I\'m doing pretty well, how about you?',
   'The Politics of Jane Eyre.',
   'Elizabeth, the eldest sibling of a tight family of four budding young authors, who created an epic literature for their fantasy worlds of Angria and Gondal.',
   'Scientists at the CERN laboratory say they have discovered a new particle.',
@@ -40,7 +42,7 @@ def run_eval(args):
       start_time = time.time()
       with open(path, 'wb') as f:
         f.write(synth.synthesize(text))
-      print("Time to synthesize: "+str(round((time.time() - start_time)*100)/100)+"s")
+      print("Time to synthesize: "+str(round((time.time() - start_time)*100)/100)+"s"+", "+str(round(10000*(i/(len(sentences))))/100)+"% done")
     except Exception as e:
       log('Error synthesizing: %s' % e)
       traceback.print_exc()
