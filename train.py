@@ -354,7 +354,7 @@ while True:
         if ord(c) == 27:  # ESC
             print("loop ran "+str(d)+" times")
             break
-        elif(c == 10 or c == 13):
+        elif(ord(c) == 10 or ord(c) == 13):
             print(str(command))
         else:
             command+=c
