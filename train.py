@@ -9,7 +9,6 @@ import sys
 import tensorflow as tf
 from tensorflow.python.client import device_lib
 import traceback
-import subprocess
 
 from datasets.datafeeder import DataFeeder
 from hparams import hparams, hparams_debug_string
