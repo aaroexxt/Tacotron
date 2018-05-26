@@ -141,17 +141,19 @@ def train(log_dir, args):
             
             audio_path = os.path.join(log_dir, 'step-%d-audio.wav' % step)
             plot_path = os.path.join(log_dir, 'step-%d-align.png' % step)
+            full_checkpoint_path = ('%s-%d' % (checkpoint_path, step))
 
             audio.save_wav(waveform, audio_path)
             plot.plot_alignment(alignment, plot_path,
              info='%s, %s, %s, step=%d, loss=%.5f' % (args.model, commit, time_string(), step, loss))
             log('Input: %s' % sequence_to_text(input_seq))
             if (args.upload_gdrive != ""):
-              log("Uploading to audio, alignment, and log to google drive at "+audio_path+", "+plot_path)
+              log("Uploading to audio, alignment, and log to google drive folder \'"+args.upload_gdrive+"\'from audio path: "+audio_path+", plot path: "+plot_path+", log path: "+os.path.join(log_dir, 'train.log'))
               try:
                 subprocess.call([skp,"upload",audio_path,("/"+args.upload_gdrive)])
                 subprocess.call([skp,"upload",plot_path,("/"+args.upload_gdrive)])
                 subprocess.call([skp,"upload",os.path.join(log_dir, 'train.log'),("/"+args.upload_gdrive)])
+                subprocess.call([skp,"upload",full_checkpoint_path,("/"+args.upload_gdrive)])
               except Exception as e:
                 log('Error uploading to google drive due to exception: %s' % e, slack=True)
                 traceback.print_exc()
@@ -190,17 +192,19 @@ def train(log_dir, args):
 
           audio_path = os.path.join(log_dir, 'step-%d-audio.wav' % step)
           plot_path = os.path.join(log_dir, 'step-%d-align.png' % step)
+          full_checkpoint_path = ('%s-%d' % (checkpoint_path, step))
 
           audio.save_wav(waveform, audio_path)
           plot.plot_alignment(alignment, plot_path,
            info='%s, %s, %s, step=%d, loss=%.5f' % (args.model, commit, time_string(), step, loss))
           log('Input: %s' % sequence_to_text(input_seq))
           if (args.upload_gdrive != ""):
-            log("Uploading to audio, alignment, and log to google drive at "+audio_path+", "+plot_path)
+            log("Uploading to audio, alignment, and log to google drive folder \'"+args.upload_gdrive+"\'from audio path: "+audio_path+", plot path: "+plot_path+", log path: "+os.path.join(log_dir, 'train.log'))
             try:
               subprocess.call([skp,"upload",audio_path,("/"+args.upload_gdrive)])
               subprocess.call([skp,"upload",plot_path,("/"+args.upload_gdrive)])
               subprocess.call([skp,"upload",os.path.join(log_dir, 'train.log'),("/"+args.upload_gdrive)])
+              subprocess.call([skp,"upload",full_checkpoint_path,("/"+args.upload_gdrive)])
             except Exception as e:
               log('Error uploading to google drive due to exception: %s' % e, slack=True)
               traceback.print_exc()
