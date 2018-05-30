@@ -15,6 +15,7 @@ from hparams import hparams, hparams_debug_string
 from models import create_model
 from text import sequence_to_text
 from util import audio, infolog, plot, ValueWindow, input
+
 log = infolog.log
 kb = input.KBHit() #init keyboard listening
 keycommand=[]
@@ -153,7 +154,9 @@ def train(log_dir, args):
                 subprocess.call([skp,"upload",audio_path,("/"+args.upload_gdrive)])
                 subprocess.call([skp,"upload",plot_path,("/"+args.upload_gdrive)])
                 subprocess.call([skp,"upload",os.path.join(log_dir, 'train.log'),("/"+args.upload_gdrive)])
-                subprocess.call([skp,"upload",full_checkpoint_path,("/"+args.upload_gdrive)])
+                subprocess.call([skp,"upload",os.path.join(log_dir, ("model.ckpt-%d.index" % step)),("/"+args.upload_gdrive)])
+                subprocess.call([skp,"upload",os.path.join(log_dir, ("model.ckpt-%d.meta" % step)),("/"+args.upload_gdrive)])
+                subprocess.call([skp,"upload",os.path.join(log_dir, ("model.ckpt-%d.data-00000-of-00001" % step)),("/"+args.upload_gdrive)])
               except Exception as e:
                 log('Error uploading to google drive due to exception: %s' % e, slack=True)
                 traceback.print_exc()
@@ -204,7 +207,9 @@ def train(log_dir, args):
               subprocess.call([skp,"upload",audio_path,("/"+args.upload_gdrive)])
               subprocess.call([skp,"upload",plot_path,("/"+args.upload_gdrive)])
               subprocess.call([skp,"upload",os.path.join(log_dir, 'train.log'),("/"+args.upload_gdrive)])
-              subprocess.call([skp,"upload",full_checkpoint_path,("/"+args.upload_gdrive)])
+              subprocess.call([skp,"upload",os.path.join(log_dir, ("model.ckpt-%d.index" % step)),("/"+args.upload_gdrive)])
+              subprocess.call([skp,"upload",os.path.join(log_dir, ("model.ckpt-%d.meta" % step)),("/"+args.upload_gdrive)])
+              subprocess.call([skp,"upload",os.path.join(log_dir, ("model.ckpt-%d.data-00000-of-00001" % step)),("/"+args.upload_gdrive)])
             except Exception as e:
               log('Error uploading to google drive due to exception: %s' % e, slack=True)
               traceback.print_exc()
@@ -218,7 +223,6 @@ def train(log_dir, args):
       traceback.print_exc()
       coord.request_stop(e)
       kb.set_normal_term()
-
 
 def main():
   parser = argparse.ArgumentParser()
@@ -242,16 +246,22 @@ def main():
   os.environ['TF_CPP_MIN_LOG_LEVEL'] = str(args.tf_log_level)
   run_name = args.name or args.model
   log_dir = os.path.join(args.base_dir, 'logs-%s' % run_name)
+  if not os.geteuid()==0:
+    raise Exception("You must be root to run this script, please start with sudo")
   os.makedirs(log_dir, exist_ok=True)
   infolog.init(os.path.join(log_dir, 'train.log'), run_name, args.slack_url)
   hparams.parse(args.hparams)
   global skp
   if (args.upload_gdrive != ""):
     if (args.skicka_path == ""): #/home/aaron/.go//bin/skicka
+      print("Determining skicka path...")
       proc = subprocess.Popen(['which', 'skicka'], stdout=subprocess.PIPE)
       output = proc.stdout.read()
       sliceend = str(output[0:len(output)-1])
       skp = str(sliceend[2:len(sliceend)-1])
+      if (len(skp) < 1):
+        raise Exception('Skicka path was not determined from this script. Please specify a path by using the --skicka_path flag.')
+        kb.set_normal_term()
     else:
       skp = args.skicka_path
     print("Skicka path: "+skp)
@@ -261,16 +271,20 @@ def main():
       subprocess.call([skp,"init"])
       print("Please enter google username and password")
       subprocess.call([skp,"ls"])
+      print("Listed files in your drive successfully.")
       print("Making directories in drive...")
       subprocess.call([skp,"mkdir","/"+args.upload_gdrive])
-      print("Uploading current files from restore_step")
       if (args.restore_step):
+        print("Uploading current files from restore_step")
         step = args.restore_step
         audio_path = os.path.join(log_dir, 'step-%d-audio.wav' % step)
         plot_path = os.path.join(log_dir, 'step-%d-align.png' % step)
         subprocess.call([skp,"upload",audio_path,("/"+args.upload_gdrive)])
         subprocess.call([skp,"upload",plot_path,("/"+args.upload_gdrive)])
         subprocess.call([skp,"upload",os.path.join(log_dir, 'train.log'),("/"+args.upload_gdrive)])
+        subprocess.call([skp,"upload",os.path.join(log_dir, ("model.ckpt-%d.index" % step)),("/"+args.upload_gdrive)])
+        subprocess.call([skp,"upload",os.path.join(log_dir, ("model.ckpt-%d.meta" % step)),("/"+args.upload_gdrive)])
+        subprocess.call([skp,"upload",os.path.join(log_dir, ("model.ckpt-%d.data-00000-of-00001" % step)),("/"+args.upload_gdrive)])
     else:
       raise Exception('If --upload_gdrive is set to a value, you must have the tool \'skicka\' installed. Run drivesetup.sh to install it.')
       kb.set_normal_term()
