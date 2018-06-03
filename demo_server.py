@@ -3,6 +3,7 @@ import falcon
 from hparams import hparams, hparams_debug_string
 import os
 from synthesizer import Synthesizer
+import time
 
 
 html_body = '''<html><title>Demo</title>
@@ -67,7 +68,11 @@ class SynthesisResource:
   def on_get(self, req, res):
     if not req.params.get('text'):
       raise falcon.HTTPBadRequest()
-    res.data = synthesizer.synthesize(req.params.get('text'))
+    text = req.params.get('text')
+    print("Now synthesizing: '"+text+"'")
+    start_time = time.time()
+    res.data = synthesizer.synthesize(text)
+    print("Time to synthesize: "+str(round((time.time() - start_time)*100)/100)+"s")
     res.content_type = 'audio/wav'
 
 
