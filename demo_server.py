@@ -5,6 +5,8 @@ import os
 from synthesizer import Synthesizer
 import time
 
+#USAGE: sudo python3 demo_server.py --checkpoint /Users/Aaron/Desktop/Code/tacotron/ckpt/model.ckpt-256921 --hparams="use_cmudict=True, max_iters=300"
+
 
 html_body = '''<html><title>Demo</title>
 <style>
